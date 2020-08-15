@@ -1,5 +1,5 @@
 var TARGET_ERROR = 0.00001;
-var INITIAL_VECTOR_SIZE = 5;
+
 
 Array.prototype.equals = function (otherArray) {
 	for (var i = 0; i < otherArray.length; i ++) {
@@ -14,85 +14,38 @@ greedyWalk();
 
 function greedyWalk() {
 
-	var currentGuess = new Array(INITIAL_VECTOR_SIZE).fill(Math.random).map(rng => rng());
+	var currentGuess = new Array(5).fill(Math.random).map(rng => rng());
 	var currentScore = cost(currentGuess);
 	console.log(currentGuess, currentScore);
 
-	var convergentFamily = {
-		size: 0,
-		max: currentScore,
-		update: function (newScore) {
-			if (this.max / newScore <= 1.00001) {
-				this.size ++;
-			} else {
-				this.max = newScore;
-				this.size = 1;
-			}
-		},
-		hasConverged: function () {
-			return this.size >= 30;
-		}
-	};
-
-	for (var iteration = 0; currentScore >= TARGET_ERROR && iteration < 1e4; iteration ++) {
+	for (var iteration = 0; currentScore >= TARGET_ERROR && iteration < 1e5; iteration ++) {
 		// Make a new guess.
 		// Each value has a 50% chance of being scaled.
 		var newGuess = currentGuess.map(currentCoefficient => {
-			var sensitivity = 0.1;//Math.log(currentScore / TARGET_ERROR) / 100;
+			var sensitivity = Math.log(currentScore / TARGET_ERROR) / 100;
 			// console.log(sensitivity);
 			var scale = (1 - sensitivity) + 2 * Math.random() * sensitivity;// Multiply by something in [1 - sens, 1 + sens)
 			return Math.random() < 0.5 ? scale * currentCoefficient : currentCoefficient;
 		});
-		if (convergentFamily.hasConverged()) {		
-			newGuess = newGuess.map((currentCoefficient, idx) => {
-				if (idx < INITIAL_VECTOR_SIZE) {
-					return currentCoefficient;
-				}
-				var scale = 0.2 * Math.random() + 0.9;
-				var normalizedIdx = idx - INITIAL_VECTOR_SIZE;
-				var probability = (normalizedIdx + 9) / (normalizedIdx + 10);// (x+1.5)/(x+2), starts at >0.5, approaches 1
-				return Math.random() < probability ? scale * currentCoefficient : currentCoefficient;
-			});
-		}
-		// if (convergentFamily.hasConverged()) {// Has converged
-		// }
 
-		if (convergentFamily.size >= 100) {
-			newGuess.push(Math.random() - 0.5);// Throw in something from [-0.5, 0.5)
+		if (newGuess.equals(currentGuess)) {
+			if (newGuess.length > 0 && Math.random() < 0.5) {
+				newGuess.pop();
+			} else {
+				newGuess.push(Math.random() - 0.5);// Throw in something from [-0.5, 0.5)
+			}
 		}
-
 		// Step if the new guess has a lower score.
 		var newScore = cost(newGuess);
 		if (newScore < currentScore) {
 			currentGuess = newGuess;
 			currentScore = newScore;
-			convergentFamily.update(newScore);
-
-			console.log(currentGuess, currentScore, convergentFamily.size, iteration);
+			console.log(currentGuess, currentScore);
 		}
 		// console.log(newGuess, newScore);
 	}
 
 	// console.log(currentGuess, currentScore);
-	console.log("# iterations", iteration);
-	console.log("Guess", currentGuess);
-	console.log("Guess cost", cost(currentGuess));
-	console.log("Actual", [
-		0,
-		1,
-		0,
-		- 1 / 6,
-		0,
-		- 1 / 120
-	]);
-	console.log("Actual cost", cost([
-		0,
-		1,
-		0,
-		- 1 / 6,
-		0,
-		- 1 / 120
-	]));
 }
 
 
@@ -106,10 +59,10 @@ function greedyWalk() {
 function cost(coefficients) {
 	var candidate = tester(coefficients);
 	var reality = (x) => Math.sin(x);
-	var testRange = range(- Math.PI, Math.PI, 0.05);
-	return testRange
+	var test_range = range(-Math.PI, Math.PI, 0.05);
+	return test_range
 		.map(x => Math.abs(reality(x) - candidate(x)))
-		.reduce((sum, a) => sum + a, 0) / testRange.length;
+		.reduce((sum, a) => sum + a, 0);
 }
 
 // return { x | x E [start,end) and (x - start) mod step = 0 }
