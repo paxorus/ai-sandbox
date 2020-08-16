@@ -1,18 +1,22 @@
 /**
+ * Greedy random-walk algorithm to approximate the leading coefficients of the Taylor series of sin(x).
  *
+ * To run: node ai.js
  */
 
-Array.prototype.sum = (keyFunction) => this.reduce((acc, x) => acc + keyFunction(x), 0);
+Array.prototype.sum = function() {
+	return this.reduce((acc, x) => acc + x, 0);
+};
 
-function greedyWalk({initialPolynomialSize, numIterations}) {
+function greedyWalk({initialPolynomialSize, numIterations, targetFunction, targetInterval}) {
 
-	var currentGuess = new Array(initialPolynomialSize).fill(null).map(() => Math.random());
-	var currentScore = cost(currentGuess);
+	var currentGuess = fillArray(initialPolynomialSize, Math.random);
+	var currentCost = computeCost(currentGuess, targetFunction, targetInterval);
 
 	// Keep track of how long the cost has been "stuck".
-	var convergentFamily = {
+	const convergenceTracker = {
 		size: 0,
-		max: currentScore,
+		max: currentCost,
 		update: function (newScore) {
 			if (this.max / newScore <= 1.00001) {
 				this.size ++;
@@ -37,38 +41,38 @@ function greedyWalk({initialPolynomialSize, numIterations}) {
 		});
 
 		// Experimental: Converged? Jumpstart the guess, especially leading (lower order) coefficients beyond the original ones.
-		if (convergentFamily.hasConverged()) {		
+		if (convergenceTracker.hasConverged()) {		
 			newGuess = newGuess.map((currentCoefficient, idx) => {
 				if (idx < initialPolynomialSize) {
 					return currentCoefficient;
 				}
-				var scale = 0.2 * Math.random() + 0.9;
-				var normalizedIdx = idx - initialPolynomialSize;
-				var probability = (normalizedIdx + 9) / (normalizedIdx + 10);// starts at >0.9, approaches 1
+				const scale = 0.2 * Math.random() + 0.9;
+				const normalizedIdx = idx - initialPolynomialSize;
+				const probability = (normalizedIdx + 9) / (normalizedIdx + 10);// starts at >0.9, approaches 1
 				return Math.random() < probability ? scale * currentCoefficient : currentCoefficient;
 			});
 		}
 
 		// Experimental: Definitely converged? Add a new coefficient.
-		if (convergentFamily.hasSuperConverged()) {
+		if (convergenceTracker.hasSuperConverged()) {
 			newGuess.push(Math.random() - 0.5);// Throw in something from [-0.5, 0.5)
 		}
 
-		// Step if the new guess has a lower score.
-		var newScore = cost(newGuess);
-		if (newScore < currentScore) {
+		// Step if the new guess has a lower cost.
+		const newCost = computeCost(newGuess, targetFunction, targetInterval);
+		if (newCost < currentCost) {
 			currentGuess = newGuess;
-			currentScore = newScore;
-			convergentFamily.update(newScore);
+			currentCost = newCost;
+			convergenceTracker.update(newCost);
 
-			console.log(currentGuess, currentScore, convergentFamily.size, iteration);
+			console.log(currentGuess, currentCost, convergenceTracker.size, iteration);
 		}
 	}
 
-	console.log(currentGuess, currentScore);
-	console.log("# iterations", numIterations);
-	console.log("Guess", currentGuess);
-	console.log("Guess cost", cost(currentGuess));
+	// Print results.
+	console.log(currentGuess, currentCost);
+	console.log("Final coefficients", currentGuess);
+	console.log("Final cost", computeCost(currentGuess, targetFunction, targetInterval));
 
 	// Copy-paste into desmos.com graphing calculator.
 	const graphableString = currentGuess.map((c, idx) => {
@@ -81,7 +85,7 @@ function greedyWalk({initialPolynomialSize, numIterations}) {
 	console.log(graphableString);
 
 	// Worst-case, y = 0, as a sanity check.
-	console.log(cost([0]));
+	console.log("Worst-case cost", computeCost([0], targetFunction, targetInterval));
 
 	// Do not use the truncated Maclaurin series as a theoretical ideal. Even at 10 coefficients, it does
 	// not approximate sin(x) well outside [-4, 4]. This greedy estimator will do a better job (overfitting)
@@ -89,30 +93,32 @@ function greedyWalk({initialPolynomialSize, numIterations}) {
 }
 
 
-
 /**
  * The cost/loss function to score the suggested Taylor expansion. Aim to minimize this.
  * 
- * @params array[float] coefficients The list of coefficents.
- * @return float The score representing the error from the desired function
+ * @param array[float] coefficients: The list of coefficents.
+ * @param function targetFunction: The function being approximated.
+ * @return float: The score representing the sum of squares of deviations from the desired function
  */
-function cost(coefficients) {
+function computeCost(coefficients, targetFunction, targetInterval) {
 	var candidate = tester(coefficients);
 	var reality = (x) => Math.sin(x);
-	var testRange = range(- 2 * Math.PI, 2 * Math.PI, 0.01);
+	var testRange = range(targetInterval.lower, targetInterval.upper, 0.01);
 	return testRange
-		.map(x => Math.abs(reality(x) - candidate(x)))
-		.reduce((sum, a) => sum + a * a, 0) / testRange.length;
+		.map(x => Math.pow(reality(x) - candidate(x), 2))
+		.sum() / testRange.length;
 }
 
-// return { x | x E [start,end) and (x - start) mod step = 0 }
+/**
+ * @return array[float]: { x | x E [start,end) and (x - start) mod step = 0 }
+ */
 function range(start, end, step = 1) {
 	var size = Math.ceil((end - start) / step);
 	var vector = [...Array(size).keys()];
 	return vector.map(x => x * step + start);
 }
 
-// Used by cost() to build the candidate polynomial function 
+// Used by computeCost() to build the candidate polynomial function 
 function tester(coefficients) {
 	return function (x) {
 		return coefficients
@@ -121,7 +127,17 @@ function tester(coefficients) {
 	};
 }
 
+function fillArray(size, fillFunction) {
+	return new Array(size).fill(null).map(() => fillFunction());
+}
+
+
 greedyWalk({
 	initialPolynomialSize: 6,
-	numIterations: 1e4
+	numIterations: 10_000,
+	targetFunction: Math.sin,
+	targetInterval: {
+		lower: - 2 * Math.PI,
+		upper: 2 * Math.PI
+	}
 });
