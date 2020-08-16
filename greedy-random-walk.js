@@ -1,7 +1,7 @@
 /**
  * Greedy random-walk algorithm to approximate the leading coefficients of the Taylor series of sin(x).
  *
- * To run: node ai.js
+ * To run: node greedy-random-walk.js
  */
 
 Array.prototype.sum = function() {
